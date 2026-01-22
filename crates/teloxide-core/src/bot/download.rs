@@ -38,7 +38,7 @@ impl Download for Bot {
 
         net::download_file(
             &self.client,
-            reqwest::Url::clone(&*self.api_url),
+            url::Url::clone(&*self.api_url),
             &self.token,
             path,
             destination,
@@ -46,14 +46,14 @@ impl Download for Bot {
         .boxed()
     }
 
-    type StreamErr = reqwest::Error;
+    type StreamErr = wreq::Error;
 
     type Stream = BoxStream<'static, Result<Bytes, Self::StreamErr>>;
 
     fn download_file_stream(&self, path: &str) -> Self::Stream {
         net::download_file_stream(
             &self.client,
-            reqwest::Url::clone(&*self.api_url),
+            url::Url::clone(&*self.api_url),
             &self.token,
             path,
         )

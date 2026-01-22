@@ -1,7 +1,7 @@
 use std::{future::IntoFuture, sync::Arc};
 
 use futures::{future::BoxFuture, FutureExt};
-use reqwest::Url;
+use url::Url;
 
 use crate::{
     errors::AsResponseParameters,

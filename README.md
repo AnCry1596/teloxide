@@ -23,6 +23,29 @@
   A full-featured framework that empowers you to easily build [Telegram bots](https://telegram.org/blog/bot-revolution) using [Rust](https://www.rust-lang.org/). It handles all the difficult stuff so you can focus only on your business logic.
 </div>
 
+> **Note:** This is a modified version of teloxide that uses [wreq](https://github.com/0x676e67/wreq) instead of reqwest as the HTTP client. This fork is for users who use wreq in their projects and encounter compilation conflicts when both BoringSSL (used by wreq) and OpenSSL (used by reqwest) are present. This version also adds **upload progress callback** support for tracking file upload progress.
+
+## Upload Progress Callbacks
+
+This fork adds support for tracking upload progress when sending files:
+
+```rust
+use teloxide_core::types::{InputFile, UploadProgress};
+use std::sync::Arc;
+
+let file = InputFile::file("large_video.mp4")
+    .with_progress(Arc::new(|progress: UploadProgress| {
+        if let Some(pct) = progress.percentage() {
+            println!("Upload progress: {:.1}%", pct);
+        } else {
+            println!("Uploaded {} bytes", progress.bytes_sent);
+        }
+    }));
+
+// Use with any file-sending method
+bot.send_video(chat_id, file).await?;
+```
+
 ## Highlights
 
  - **Declarative design.** `teloxide` is based upon [`dptree`], a functional [chain of responsibility] pattern that allows you to express pipelines of message processing in a highly declarative and extensible style.

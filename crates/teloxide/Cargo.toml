@@ -18,23 +18,16 @@ categories = ["web-programming", "api-bindings", "asynchronous"]
 
 
 [features]
-default = ["native-tls", "ctrlc_handler", "teloxide-core/default"]
+default = ["ctrlc_handler", "teloxide-core/default"]
 
 webhooks = ["rand"]
 webhooks-axum = ["webhooks", "axum", "tower", "tower-http"]
 
-sqlite-storage-nativetls = [
+# Note: wreq uses boring-tls by default, so TLS features are simplified
+sqlite-storage = [
     "sqlx",
-    "sqlx/runtime-tokio-native-tls",
-    "native-tls",
+    "sqlx/runtime-tokio",
 ]
-sqlite-storage-rustls = ["sqlx", "sqlx/runtime-tokio-rustls", "rustls"]
-postgres-storage-nativetls = [
-    "sqlx",
-    "sqlx/runtime-tokio-native-tls",
-    "native-tls",
-]
-postgres-storage-rustls = ["sqlx", "sqlx/runtime-tokio-rustls", "rustls"]
 redis-storage = ["deadpool-redis"]
 
 cbor-serializer = ["serde_cbor"]
@@ -46,9 +39,6 @@ ctrlc_handler = ["tokio/signal"]
 
 tracing = ["dep:tracing"]
 
-native-tls = ["teloxide-core/native-tls"]
-rustls = ["teloxide-core/rustls"]
-rustls-native-roots = ["teloxide-core/rustls-native-roots"]
 throttle = ["teloxide-core/throttle"]
 cache-me = [
     "teloxide-core/cache_me",
@@ -63,18 +53,13 @@ nightly = ["teloxide-core/nightly"]
 full = [
     "webhooks",
     "webhooks-axum",
-    "sqlite-storage-nativetls",
-    # "sqlite-storage-rustls" is explicitly ommited here,
-    # since it conflicts with "sqlite-storage-nativetls"
+    "sqlite-storage",
     "redis-storage",
-    "postgres-storage-nativetls",
     "cbor-serializer",
     "bincode-serializer",
     "macros",
     "ctrlc_handler",
     "teloxide-core/full",
-    "native-tls",
-    "rustls",
     "throttle",
     "cache-me",
     "trace-adaptor",
