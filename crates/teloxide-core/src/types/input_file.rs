@@ -1,11 +1,11 @@
 use bytes::{Bytes, BytesMut};
 use futures::{
     future::{ready, Either},
-    stream,
+    stream::{self, Stream},
 };
 use once_cell::sync::OnceCell;
 use rc_box::ArcBox;
-use reqwest::{multipart::Part, Body};
+use wreq::{multipart::Part, Body};
 use serde::Serialize;
 use takecell::TakeCell;
 use tokio::{
@@ -16,19 +16,99 @@ use tokio_util::codec::{Decoder, FramedRead};
 
 use std::{
     borrow::Cow, convert::Infallible, fmt, future::Future, io, iter, mem, path::PathBuf, pin::Pin,
-    sync::Arc, task,
+    sync::Arc,
+    task,
 };
 
 use crate::types::{self, InputSticker};
 
+/// Progress information for file uploads.
+#[derive(Debug, Clone, Copy)]
+pub struct UploadProgress {
+    /// Number of bytes uploaded so far.
+    pub bytes_sent: u64,
+    /// Total file size in bytes, if known.
+    pub total_bytes: Option<u64>,
+}
+
+impl UploadProgress {
+    /// Returns the upload progress as a percentage (0.0 to 100.0).
+    /// Returns `None` if total size is unknown.
+    #[must_use]
+    pub fn percentage(&self) -> Option<f64> {
+        self.total_bytes.map(|total| {
+            if total == 0 {
+                100.0
+            } else {
+                (self.bytes_sent as f64 / total as f64) * 100.0
+            }
+        })
+    }
+}
+
+/// A callback type for upload progress notifications.
+pub type ProgressCallback = Arc<dyn Fn(UploadProgress) + Send + Sync>;
+
+/// A stream wrapper that tracks progress and calls a callback.
+#[pin_project::pin_project]
+struct ProgressStream<S> {
+    #[pin]
+    inner: S,
+    bytes_sent: u64,
+    total_bytes: Option<u64>,
+    callback: ProgressCallback,
+}
+
+impl<S> ProgressStream<S> {
+    fn new(inner: S, callback: ProgressCallback, total_bytes: Option<u64>) -> Self {
+        // Call callback with initial state
+        callback(UploadProgress { bytes_sent: 0, total_bytes });
+        Self { inner, bytes_sent: 0, total_bytes, callback }
+    }
+}
+
+impl<S, E> Stream for ProgressStream<S>
+where
+    S: Stream<Item = Result<Bytes, E>>,
+{
+    type Item = Result<Bytes, E>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Option<Self::Item>> {
+        let this = self.project();
+        match this.inner.poll_next(cx) {
+            task::Poll::Ready(Some(Ok(bytes))) => {
+                *this.bytes_sent += bytes.len() as u64;
+                (this.callback)(UploadProgress {
+                    bytes_sent: *this.bytes_sent,
+                    total_bytes: *this.total_bytes,
+                });
+                task::Poll::Ready(Some(Ok(bytes)))
+            }
+            other => other,
+        }
+    }
+}
+
 /// This object represents the contents of a file to be uploaded.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputfile).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InputFile {
     id: OnceCell<Arc<str>>,
     file_name: Option<Cow<'static, str>>,
     inner: InnerFile,
+    progress_callback: Option<ProgressCallback>,
+}
+
+impl fmt::Debug for InputFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InputFile")
+            .field("id", &self.id)
+            .field("file_name", &self.file_name)
+            .field("inner", &self.inner)
+            .field("progress_callback", &self.progress_callback.as_ref().map(|_| "<callback>"))
+            .finish()
+    }
 }
 
 #[derive(Clone)]
@@ -106,10 +186,36 @@ impl InputFile {
         Self::new(Read(Read::new(Arc::new(TakeCell::new(it)))))
     }
 
-    /// Shorthand for `Self { file_name: None, inner, id: default() }`
+    /// Sets a progress callback that will be called during file upload.
+    ///
+    /// The callback receives [`UploadProgress`] with the current upload status.
+    /// This is useful for tracking upload speed and displaying progress bars.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use teloxide_core::types::InputFile;
+    /// use std::sync::Arc;
+    ///
+    /// let file = InputFile::file("video.mp4")
+    ///     .with_progress(Arc::new(|progress| {
+    ///         if let Some(pct) = progress.percentage() {
+    ///             println!("Upload progress: {:.1}%", pct);
+    ///         } else {
+    ///             println!("Uploaded {} bytes", progress.bytes_sent);
+    ///         }
+    ///     }));
+    /// ```
+    #[must_use]
+    pub fn with_progress(mut self, callback: ProgressCallback) -> Self {
+        self.progress_callback = Some(callback);
+        self
+    }
+
+    /// Shorthand for `Self { file_name: None, inner, id: default(), progress_callback: None }`
     /// (private because `InnerFile` is private implementation detail)
     fn new(inner: InnerFile) -> Self {
-        Self { file_name: None, inner, id: OnceCell::new() }
+        Self { file_name: None, inner, id: OnceCell::new(), progress_callback: None }
     }
 
     /// Returns id of this file.
@@ -195,18 +301,26 @@ impl Serialize for InputFile {
 impl InputFile {
     pub(crate) fn into_part(mut self) -> Option<impl Future<Output = Part>> {
         let filename = self.take_or_guess_filename();
+        let progress_callback = self.progress_callback.take();
 
         match self.inner {
             // Url and FileId are serialized just as strings, they don't need additional parts
             Url(_) | FileId(_) => None,
 
             File(path_to_file) => {
-                let fut = async {
-                    let body = match tokio::fs::File::open(path_to_file).await {
+                let fut = async move {
+                    let body = match tokio::fs::File::open(&path_to_file).await {
                         Ok(file) => {
+                            // Get file size for progress tracking
+                            let total_bytes = file.metadata().await.ok().map(|m| m.len());
                             let file = FramedRead::new(file, BytesDecoder);
 
-                            Body::wrap_stream(file)
+                            if let Some(callback) = progress_callback {
+                                let stream = ProgressStream::new(file, callback, total_bytes);
+                                Body::wrap_stream(stream)
+                            } else {
+                                Body::wrap_stream(file)
+                            }
                         }
                         Err(err) => {
                             // explicit type needed for `Bytes: From<?T>` in `wrap_stream`
@@ -221,10 +335,18 @@ impl InputFile {
                 Some(Either::Left(fut))
             }
             Bytes(data) => {
-                let stream = Part::stream(data).file_name(filename);
-                Some(Either::Right(Either::Left(ready(stream))))
+                if let Some(callback) = progress_callback {
+                    let total_bytes = Some(data.len() as u64);
+                    let stream = stream::iter([Ok::<_, Infallible>(data)]);
+                    let stream = ProgressStream::new(stream, callback, total_bytes);
+                    let part = Part::stream(Body::wrap_stream(stream)).file_name(filename);
+                    Some(Either::Right(Either::Left(ready(part))))
+                } else {
+                    let part = Part::stream(data).file_name(filename);
+                    Some(Either::Right(Either::Left(ready(part))))
+                }
             }
-            Read(read) => Some(Either::Right(Either::Right(read.into_part(filename)))),
+            Read(read) => Some(Either::Right(Either::Right(read.into_part(filename, progress_callback)))),
         }
     }
 }
@@ -246,16 +368,21 @@ impl Read {
         Self { inner: it, buf: Arc::default(), notify: Arc::new(tx), wait: rx }
     }
 
-    pub(crate) async fn into_part(mut self, filename: Cow<'static, str>) -> Part {
+    pub(crate) async fn into_part(mut self, filename: Cow<'static, str>, progress_callback: Option<ProgressCallback>) -> Part {
         if !self.inner.is_taken() {
             let res = ArcBox::<TakeCell<dyn AsyncRead + Send + Unpin>>::try_from(self.inner);
             match res {
                 // Fast/easy path: this is the only file copy, so we can just forward the underlying
-                // `dyn AsyncRead` via some adaptors to reqwest.
+                // `dyn AsyncRead` via some adaptors to wreq.
                 Ok(arc_box) => {
                     let fr = FramedRead::new(ExclusiveArcAsyncRead(arc_box), BytesDecoder);
 
-                    let body = Body::wrap_stream(fr);
+                    let body = if let Some(callback) = progress_callback {
+                        // Note: total_bytes is unknown for AsyncRead
+                        Body::wrap_stream(ProgressStream::new(fr, callback, None))
+                    } else {
+                        Body::wrap_stream(fr)
+                    };
                     return Part::stream(body).file_name(filename);
                 }
                 // move the arc back into `self`
@@ -265,12 +392,12 @@ impl Read {
 
         // Slow path: either wait until someone will read the whole `dyn AsyncRead` into
         // a buffer, or be the one who reads
-        let body = self.into_shared_body().await;
+        let body = self.into_shared_body(progress_callback).await;
 
         Part::stream(body).file_name(filename)
     }
 
-    async fn into_shared_body(mut self) -> Body {
+    async fn into_shared_body(mut self, progress_callback: Option<ProgressCallback>) -> Body {
         match self.inner.take() {
             // Read `dyn AsyncRead` into a buffer
             Some(mut read_ref) => {
@@ -329,7 +456,10 @@ impl Read {
         // unwrap: `OnceCell` is initialized in the match above before sending
         // notification, so at this point it's already initialized.
         match buf.get().unwrap() {
-            Ok(_) => {
+            Ok(chunks) => {
+                // Calculate total size for progress tracking
+                let total_bytes: u64 = chunks.iter().map(|c| c.len() as u64).sum();
+
                 // We can't use `.iter()` here, because the iterator must capture `buf`
                 let mut i = 0;
                 let iter = iter::from_fn(move || match buf.get().unwrap() {
@@ -343,7 +473,11 @@ impl Read {
                     Err(_) => unreachable!(),
                 });
 
-                Body::wrap_stream(stream::iter(iter))
+                if let Some(callback) = progress_callback {
+                    Body::wrap_stream(ProgressStream::new(stream::iter(iter), callback, Some(total_bytes)))
+                } else {
+                    Body::wrap_stream(stream::iter(iter))
+                }
             }
 
             Err(err) => {

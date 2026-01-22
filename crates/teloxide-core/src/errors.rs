@@ -26,7 +26,7 @@ pub enum RequestError {
     /// Network error while sending a request to Telegram.
     #[error("A network error: {0}")]
     // NOTE: this variant must not be created by anything except the explicit From impl
-    Network(#[source] Arc<reqwest::Error>),
+    Network(#[source] Arc<wreq::Error>),
 
     /// Error while parsing a response from Telegram.
     ///
@@ -53,7 +53,7 @@ pub enum DownloadError {
     /// A network error while downloading a file from Telegram.
     #[error("A network error: {0}")]
     // NOTE: this variant must not be created by anything except the explicit From impl
-    Network(#[source] Arc<reqwest::Error>),
+    Network(#[source] Arc<wreq::Error>),
 
     /// An I/O error while writing a file to destination.
     #[error("An I/O error: {0}")]
@@ -756,58 +756,62 @@ impl From<DownloadError> for RequestError {
     }
 }
 
-impl From<reqwest::Error> for DownloadError {
-    fn from(error: reqwest::Error) -> Self {
+impl From<wreq::Error> for DownloadError {
+    fn from(error: wreq::Error) -> Self {
         DownloadError::Network(Arc::new(hide_token(error)))
     }
 }
 
-impl From<reqwest::Error> for RequestError {
-    fn from(error: reqwest::Error) -> Self {
+impl From<wreq::Error> for RequestError {
+    fn from(error: wreq::Error) -> Self {
         RequestError::Network(Arc::new(hide_token(error)))
     }
 }
 
 /// Replaces token in the url in the error with `token:redacted` string.
-pub(crate) fn hide_token(mut error: reqwest::Error) -> reqwest::Error {
-    let url = match error.url_mut() {
-        Some(url) => url,
+pub(crate) fn hide_token(mut error: wreq::Error) -> wreq::Error {
+    let uri = match error.uri_mut() {
+        Some(uri) => uri,
         None => return error,
     };
 
-    if let Some(mut segments) = url.path_segments() {
-        // Usually the url looks like "bot<token>/..." or "file/bot<token>/...".
-        let (beginning, segment) = match segments.next() {
-            Some("file") => ("file/", segments.next()),
-            segment => ("", segment),
-        };
+    let path = uri.path();
 
-        if let Some(token) = segment.and_then(|s| s.strip_prefix("bot")) {
-            // make sure that what we are about to delete looks like a bot token
-            if let Some((id, secret)) = token.split_once(':') {
-                // The part before the : in the token is the id of the bot.
-                let id_character = |c: char| c.is_ascii_digit();
+    // Usually the url looks like "bot<token>/..." or "file/bot<token>/...".
+    let mut segments = path.split('/').filter(|s| !s.is_empty());
+    let (beginning, segment) = match segments.next() {
+        Some("file") => ("file/", segments.next()),
+        segment => ("", segment),
+    };
 
-                // The part after the : in the token is the secret.
-                //
-                // In all bot tokens we could find the secret is 35 characters long and is
-                // 0-9a-zA-Z_- only.
-                //
-                // It would be nice to research if TBA always has 35 character secrets or if it
-                // is just a coincidence.
-                const SECRET_LENGTH: usize = 35;
-                let secret_character = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
+    if let Some(token) = segment.and_then(|s| s.strip_prefix("bot")) {
+        // make sure that what we are about to delete looks like a bot token
+        if let Some((id, secret)) = token.split_once(':') {
+            // The part before the : in the token is the id of the bot.
+            let id_character = |c: char| c.is_ascii_digit();
 
-                if secret.len() >= SECRET_LENGTH
-                    && id.chars().all(id_character)
-                    && secret.chars().all(secret_character)
-                {
-                    // found token, hide only the token
-                    let without_token =
-                        &url.path()[(beginning.len() + "/bot".len() + token.len())..];
-                    let redacted = format!("{beginning}token:redacted{without_token}");
+            // The part after the : in the token is the secret.
+            //
+            // In all bot tokens we could find the secret is 35 characters long and is
+            // 0-9a-zA-Z_- only.
+            //
+            // It would be nice to research if TBA always has 35 character secrets or if it
+            // is just a coincidence.
+            const SECRET_LENGTH: usize = 35;
+            let secret_character = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
 
-                    url.set_path(&redacted);
+            if secret.len() >= SECRET_LENGTH
+                && id.chars().all(id_character)
+                && secret.chars().all(secret_character)
+            {
+                // found token, hide only the token
+                let without_token =
+                    &path[(beginning.len() + "/bot".len() + token.len())..];
+                let redacted = format!("/{beginning}token:redacted{without_token}");
+
+                // Try to rebuild the URI with redacted path
+                if let Ok(new_uri) = redacted.parse() {
+                    *uri = new_uri;
                     return error;
                 }
             }
@@ -815,7 +819,7 @@ pub(crate) fn hide_token(mut error: reqwest::Error) -> reqwest::Error {
     }
 
     // couldn't find token in the url, hide the whole url
-    error.without_url()
+    error.without_uri()
 }
 
 #[cfg(test)]

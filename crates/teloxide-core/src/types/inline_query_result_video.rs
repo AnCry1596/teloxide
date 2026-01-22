@@ -18,14 +18,14 @@ pub struct InlineQueryResultVideo {
     pub id: String,
 
     /// A valid URL for the embedded video player or video file.
-    pub video_url: reqwest::Url,
+    pub video_url: url::Url,
 
     /// Mime type of the content of video url, `text/html` or `video/mp4`.
     #[serde(with = "crate::types::non_telegram_types::mime::deser")]
     pub mime_type: Mime,
 
     /// URL of the thumbnail (jpeg only) for the video.
-    pub thumbnail_url: reqwest::Url,
+    pub thumbnail_url: url::Url,
 
     /// Title for the result.
     pub title: String,
@@ -78,9 +78,9 @@ pub struct InlineQueryResultVideo {
 impl InlineQueryResultVideo {
     pub fn new<S1, S2>(
         id: S1,
-        video_url: reqwest::Url,
+        video_url: url::Url,
         mime_type: Mime,
-        thumbnail_url: reqwest::Url,
+        thumbnail_url: url::Url,
         title: S2,
     ) -> Self
     where
@@ -115,7 +115,7 @@ impl InlineQueryResultVideo {
     }
 
     #[must_use]
-    pub fn video_url(mut self, val: reqwest::Url) -> Self {
+    pub fn video_url(mut self, val: url::Url) -> Self {
         self.video_url = val;
         self
     }
@@ -127,7 +127,7 @@ impl InlineQueryResultVideo {
     }
 
     #[must_use]
-    pub fn thumbnail_url(mut self, val: reqwest::Url) -> Self {
+    pub fn thumbnail_url(mut self, val: url::Url) -> Self {
         self.thumbnail_url = val;
         self
     }

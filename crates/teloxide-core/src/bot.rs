@@ -1,6 +1,6 @@
 use std::{future::Future, sync::Arc};
 
-use reqwest::Client;
+use wreq::Client;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
@@ -53,39 +53,48 @@ const TELOXIDE_API_URL: &str = "TELOXIDE_API_URL";
 /// [`Arc`]: std::sync::Arc
 /// [Telegram Bot API]: https://core.telegram.org/bots/api
 #[must_use]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Bot {
     token: Arc<str>,
-    api_url: Arc<reqwest::Url>,
+    api_url: Arc<url::Url>,
     client: Client,
+}
+
+impl std::fmt::Debug for Bot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Bot")
+            .field("token", &"[REDACTED]")
+            .field("api_url", &self.api_url)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Constructors
 impl Bot {
     /// Creates a new `Bot` with the specified token and the default
-    /// [http-client](reqwest::Client).
+    /// [http-client](wreq::Client).
     ///
     /// # Panics
     ///
-    /// If it cannot create [`reqwest::Client`].
+    /// If it cannot create [`wreq::Client`].
     pub fn new<S>(token: S) -> Self
     where
         S: Into<String>,
     {
-        let client = net::default_reqwest_settings().build().expect("Client creation failed");
+        let client = net::default_wreq_settings().build().expect("Client creation failed");
 
         Self::with_client(token, client)
     }
 
     /// Creates a new `Bot` with the specified token and your
-    /// [`reqwest::Client`].
+    /// [`wreq::Client`].
     ///
     /// # Caution
     ///
     /// Your custom client might not be configured correctly to be able to work
     /// in long time durations, see [issue 223].
     ///
-    /// [`reqwest::Client`]: https://docs.rs/reqwest/latest/reqwest/struct.Client.html
+    /// [`wreq::Client`]: https://docs.rs/wreq/latest/wreq/struct.Client.html
     /// [issue 223]: https://github.com/teloxide/teloxide/issues/223
     pub fn with_client<S>(token: S, client: Client) -> Self
     where
@@ -93,7 +102,7 @@ impl Bot {
     {
         let token = Into::<String>::into(token).into();
         let api_url = Arc::new(
-            reqwest::Url::parse(net::TELEGRAM_API_URL)
+            url::Url::parse(net::TELEGRAM_API_URL)
                 .expect("Failed to parse the default TBA URL"),
         );
 
@@ -102,28 +111,28 @@ impl Bot {
 
     /// Creates a new `Bot` with the `TELOXIDE_TOKEN` & `TELOXIDE_API_URL` &
     /// `TELOXIDE_PROXY` environmental variables (the bot's token & the bot's
-    /// API URL & the proxy) and the default [`reqwest::Client`].
+    /// API URL & the proxy) and the default [`wreq::Client`].
     ///
     /// If `TELOXIDE_API_URL` doesn't exist, returns to the default TBA URL.
     ///
     /// This function passes the value of `TELOXIDE_PROXY` into
-    /// [`reqwest::Proxy::all`], if it exists, otherwise returns the default
+    /// [`wreq::Proxy::all`], if it exists, otherwise returns the default
     /// client.
     ///
     /// # Panics
     ///  - If cannot get the `TELOXIDE_TOKEN`  environmental variable.
     ///  - If `TELOXIDE_API_URL` exists, but isn't a correct URL.
-    ///  - If it cannot create [`reqwest::Client`].
+    ///  - If it cannot create [`wreq::Client`].
     ///
-    /// [`reqwest::Client`]: https://docs.rs/reqwest/0.10.1/reqwest/struct.Client.html
-    /// [`reqwest::Proxy::all`]: https://docs.rs/reqwest/latest/reqwest/struct.Proxy.html#method.all
+    /// [`wreq::Client`]: https://docs.rs/wreq/latest/wreq/struct.Client.html
+    /// [`wreq::Proxy::all`]: https://docs.rs/wreq/latest/wreq/struct.Proxy.html#method.all
     pub fn from_env() -> Self {
         Self::from_env_with_client(crate::net::client_from_env())
     }
 
     /// Creates a new `Bot` with the `TELOXIDE_TOKEN` environmental variable
     /// (the bot's token), `TELOXIDE_API_URL` environmental variable (the bot's
-    /// API URL) and your [`reqwest::Client`].
+    /// API URL) and your [`wreq::Client`].
     ///
     /// If `TELOXIDE_API_URL` doesn't exist, returns to the default TBA URL.
     ///
@@ -135,7 +144,7 @@ impl Bot {
     /// Your custom client might not be configured correctly to be able to work
     /// in long time durations, see [issue 223].
     ///
-    /// [`reqwest::Client`]: https://docs.rs/reqwest/0.10.1/reqwest/struct.Client.html
+    /// [`wreq::Client`]: https://docs.rs/wreq/latest/wreq/struct.Client.html
     /// [issue 223]: https://github.com/teloxide/teloxide/issues/223
     pub fn from_env_with_client(client: Client) -> Self {
         let bot = Self::with_client(get_env(TELOXIDE_TOKEN), client);
@@ -148,7 +157,7 @@ impl Bot {
                 } else {
                     &env_api_url
                 };
-                let api_url = reqwest::Url::parse(env_api_url)
+                let api_url = url::Url::parse(env_api_url)
                     .expect("Failed to parse the `TELOXIDE_API_URL` env variable");
                 bot.set_api_url(api_url)
             }
@@ -172,7 +181,7 @@ impl Bot {
     /// };
     ///
     /// # async {
-    /// let url = reqwest::Url::parse("https://localhost/tbas").unwrap();
+    /// let url = url::Url::parse("https://localhost/tbas").unwrap();
     /// let bot = Bot::new("TOKEN").set_api_url(url);
     /// // From now all methods will use "https://localhost/tbas" as an API URL.
     /// bot.get_me().await
@@ -189,13 +198,13 @@ impl Bot {
     ///
     /// let bot = Bot::new("TOKEN");
     /// let bot2 = bot.clone();
-    /// let bot = bot.set_api_url(reqwest::Url::parse("https://example.com/").unwrap());
+    /// let bot = bot.set_api_url(url::Url::parse("https://example.com/").unwrap());
     ///
     /// assert_eq!(bot.api_url().as_str(), "https://example.com/");
     /// assert_eq!(bot.clone().api_url().as_str(), "https://example.com/");
     /// assert_ne!(bot2.api_url().as_str(), "https://example.com/");
     /// ```
-    pub fn set_api_url(mut self, url: reqwest::Url) -> Self {
+    pub fn set_api_url(mut self, url: url::Url) -> Self {
         self.api_url = Arc::new(url);
         self
     }
@@ -217,8 +226,8 @@ impl Bot {
 
     /// Returns currently used token API URL.
     #[must_use]
-    pub fn api_url(&self) -> reqwest::Url {
-        reqwest::Url::clone(&*self.api_url)
+    pub fn api_url(&self) -> url::Url {
+        url::Url::clone(&*self.api_url)
     }
 }
 
@@ -245,7 +254,7 @@ impl Bot {
             net::request_json(
                 &client,
                 token.as_ref(),
-                reqwest::Url::clone(&*api_url),
+                url::Url::clone(&*api_url),
                 P::NAME,
                 params,
                 timeout_hint,
@@ -275,7 +284,7 @@ impl Bot {
             net::request_multipart(
                 &client,
                 token.as_ref(),
-                reqwest::Url::clone(&*api_url),
+                url::Url::clone(&*api_url),
                 P::NAME,
                 params,
                 timeout_hint,
@@ -305,7 +314,7 @@ impl Bot {
             net::request_multipart(
                 &client,
                 token.as_ref(),
-                reqwest::Url::clone(&*api_url),
+                url::Url::clone(&*api_url),
                 P::NAME,
                 params,
                 timeout_hint,

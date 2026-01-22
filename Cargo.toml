@@ -15,3 +15,6 @@ repository = "https://github.com/teloxide/teloxide"
 [workspace.metadata.release]
 tag-message = "Release {{crate_name}} version {{version}}"
 tag-name = "{{prefix}}v{{version}}"
+
+[patch.crates-io]
+wreq = { git = "https://github.com/0x676e67/wreq" }

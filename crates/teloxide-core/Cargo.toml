@@ -19,11 +19,9 @@ categories = ["api-bindings", "asynchronous"]
 [features]
 # NB: When adding features here, don't forget to update teloxide's Cargo.toml
 
-default = ["native-tls"]
+default = []
 
-rustls = ["reqwest/rustls-tls"]
-rustls-native-roots = ["reqwest/rustls-tls-native-roots"]
-native-tls = ["reqwest/native-tls"]
+# TLS features are not needed when using wreq with boring-tls (default)
 
 # Features which require nightly compiler.
 #
@@ -53,11 +51,22 @@ tokio = { version = "1.39", features = ["fs", "io-util"] }
 tokio-util = { version = "0.7.0", features = ["codec"] }
 pin-project = "1.0.12"
 bytes = "1.0.0"
-reqwest = { version = "0.12.7", features = [
+wreq = { version = "6.0.0-rc.27", features = [
+    "socks",
     "json",
-    "stream",
     "multipart",
-], default-features = false }
+    "stream",
+    "hickory-dns",
+    "charset",
+    "cookies",
+    "gzip",
+    "brotli",
+    "zstd",
+    "deflate",
+    "tracing",
+    "query",
+    "form",
+]}
 url = { version = "2", features = ["serde"] }
 log = "0.4"
 

@@ -1,7 +1,5 @@
 //! Network-specific API.
 
-use std::time::Duration;
-
 pub use self::download::{download_file, download_file_stream, Download};
 
 pub(crate) use self::{
@@ -20,7 +18,7 @@ pub const TELEGRAM_API_URL: &str = "https://api.telegram.org";
 /// variable.
 ///
 /// This function passes the value of `TELOXIDE_PROXY` into
-/// [`reqwest::Proxy::all`], if it exists, otherwise returns the default
+/// [`wreq::Proxy::all`], if it exists, otherwise returns the default
 /// client.
 ///
 /// ## Note
@@ -28,29 +26,29 @@ pub const TELEGRAM_API_URL: &str = "https://api.telegram.org";
 /// The created client will have safe settings, meaning that it will be able to
 /// work in long time durations, see the [issue 223].
 ///
-/// [`reqwest::Proxy::all`]: https://docs.rs/reqwest/latest/reqwest/struct.Proxy.html#method.all
+/// [`wreq::Proxy::all`]: https://docs.rs/wreq/latest/wreq/struct.Proxy.html#method.all
 /// [issue 223]: https://github.com/teloxide/teloxide/issues/223
 ///
 /// ## Panics
 ///
 /// If `TELOXIDE_PROXY` exists, but isn't correct url.
 #[must_use]
-pub fn client_from_env() -> reqwest::Client {
-    use reqwest::Proxy;
+pub fn client_from_env() -> wreq::Client {
+    use wreq::Proxy;
 
     const TELOXIDE_PROXY: &str = "TELOXIDE_PROXY";
 
-    let builder = default_reqwest_settings();
+    let builder = default_wreq_settings();
 
     match std::env::var(TELOXIDE_PROXY).ok() {
-        Some(proxy) => builder.proxy(Proxy::all(proxy).expect("reqwest::Proxy creation failed")),
+        Some(proxy) => builder.proxy(Proxy::all(proxy).expect("wreq::Proxy creation failed")),
         None => builder,
     }
     .build()
-    .expect("creating reqwest::Client")
+    .expect("creating wreq::Client")
 }
 
-/// Returns a reqwest client builder with default settings.
+/// Returns a wreq client builder with default settings.
 ///
 /// Client built from default settings is supposed to work over long time
 /// durations, see the [issue 223].
@@ -69,8 +67,8 @@ pub fn client_from_env() -> reqwest::Client {
 ///    guaranteed to work over long time durations.
 ///
 /// [issue 223]: https://github.com/teloxide/teloxide/issues/223
-pub fn default_reqwest_settings() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
+pub fn default_wreq_settings() -> wreq::ClientBuilder {
+    wreq::Client::builder()
         // .connect_timeout(Duration::from_secs(5))
         // .timeout(Duration::from_secs(17))
         .tcp_nodelay(true)
@@ -79,7 +77,7 @@ pub fn default_reqwest_settings() -> reqwest::ClientBuilder {
 /// Creates URL for making HTTPS requests. See the [Telegram documentation].
 ///
 /// [Telegram documentation]: https://core.telegram.org/bots/api#making-requests
-fn method_url(base: reqwest::Url, token: &str, method_name: &str) -> reqwest::Url {
+fn method_url(base: url::Url, token: &str, method_name: &str) -> url::Url {
     let mut url = base;
     {
         let mut segments = url.path_segments_mut().expect("base URL cannot be a cannot-be-a-base");
@@ -92,7 +90,7 @@ fn method_url(base: reqwest::Url, token: &str, method_name: &str) -> reqwest::Ur
 /// Creates URL for downloading a file. See the [Telegram documentation].
 ///
 /// [Telegram documentation]: https://core.telegram.org/bots/api#file
-fn file_url(base: reqwest::Url, token: &str, file_path: &str) -> reqwest::Url {
+fn file_url(base: url::Url, token: &str, file_path: &str) -> url::Url {
     let mut url = base;
     {
         let mut segments = url.path_segments_mut().expect("base URL cannot be a cannot-be-a-base");
@@ -110,7 +108,7 @@ mod tests {
     #[test]
     fn method_url_test() {
         let url = method_url(
-            reqwest::Url::parse(TELEGRAM_API_URL).unwrap(),
+            url::Url::parse(TELEGRAM_API_URL).unwrap(),
             "535362388:AAF7-g0gYncWnm5IyfZlpPRqRRv6kNAGlao",
             "methodName",
         );
@@ -124,7 +122,7 @@ mod tests {
     #[test]
     fn method_url_with_custom_url_test() {
         let url = method_url(
-            reqwest::Url::parse("https://example.com/telegram").unwrap(),
+            url::Url::parse("https://example.com/telegram").unwrap(),
             "535362388:AAF7-g0gYncWnm5IyfZlpPRqRRv6kNAGlao",
             "methodName",
         );
@@ -138,7 +136,7 @@ mod tests {
     #[test]
     fn file_url_test() {
         let url = file_url(
-            reqwest::Url::parse(TELEGRAM_API_URL).unwrap(),
+            url::Url::parse(TELEGRAM_API_URL).unwrap(),
             "535362388:AAF7-g0gYncWnm5IyfZlpPRqRRv6kNAGlao",
             "AgADAgADyqoxG2g8aEsu_KjjVsGF4-zetw8ABAEAAwIAA20AA_8QAwABFgQ",
         );
@@ -152,7 +150,7 @@ mod tests {
     #[test]
     fn file_url_with_custom_url_test() {
         let url = file_url(
-            reqwest::Url::parse("https://example.com/telegram").unwrap(),
+            url::Url::parse("https://example.com/telegram").unwrap(),
             "535362388:AAF7-g0gYncWnm5IyfZlpPRqRRv6kNAGlao",
             "AgADAgADyqoxG2g8aEsu_KjjVsGF4-zetw8ABAEAAwIAA20AA_8QAwABFgQ",
         );

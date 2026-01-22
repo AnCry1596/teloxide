@@ -6,7 +6,8 @@ use futures::{
     stream::{once, unfold},
     FutureExt, Stream, StreamExt,
 };
-use reqwest::{Client, Response, Url};
+use url::Url;
+use wreq::{Client, Response};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{errors::DownloadError, net::file_url};
@@ -96,7 +97,7 @@ pub fn download_file<'o, D>(
 where
     D: ?Sized + AsyncWrite + Unpin,
 {
-    client.get(file_url(api_url, token, path)).send().then(move |r| async move {
+    client.get(file_url(api_url, token, path).as_str()).send().then(move |r| async move {
         let mut res = r?.error_for_status()?;
 
         while let Some(chunk) = res.chunk().await? {
@@ -117,8 +118,8 @@ pub fn download_file_stream(
     api_url: Url,
     token: &str,
     path: &str,
-) -> impl Stream<Item = reqwest::Result<Bytes>> + 'static {
-    client.get(file_url(api_url, token, path)).send().into_stream().flat_map(|res| {
+) -> impl Stream<Item = wreq::Result<Bytes>> + 'static {
+    client.get(file_url(api_url, token, path).as_str()).send().into_stream().flat_map(|res| {
         match res.and_then(Response::error_for_status) {
             Ok(res) => Either::Left(unfold(res, |mut res| async {
                 match res.chunk().await {

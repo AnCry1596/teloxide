@@ -1,6 +1,6 @@
 use std::{any::TypeId, sync::Arc, time::Duration};
 
-use reqwest::{
+use wreq::{
     header::{HeaderValue, CONTENT_TYPE},
     Client, Response,
 };
@@ -13,9 +13,9 @@ const DELAY_ON_SERVER_ERROR: Duration = Duration::from_secs(10);
 pub async fn request_multipart<T>(
     client: &Client,
     token: &str,
-    api_url: reqwest::Url,
+    api_url: url::Url,
     method_name: &str,
-    params: reqwest::multipart::Form,
+    params: wreq::multipart::Form,
     _timeout_hint: Option<Duration>,
 ) -> ResponseResult<T>
 where
@@ -35,11 +35,11 @@ where
     let method_name = method_name.trim_end_matches("Inline");
 
     let request = client
-        .post(crate::net::method_url(api_url, token, method_name))
+        .post(crate::net::method_url(api_url, token, method_name).as_str())
         .multipart(params)
         .build()?;
 
-    // FIXME: uncomment this, when reqwest starts setting default timeout early
+    // FIXME: uncomment this, when wreq starts setting default timeout early
     // if let Some(timeout) = timeout_hint {
     //     *request.timeout_mut().get_or_insert(Duration::ZERO) += timeout;
     // }
@@ -52,7 +52,7 @@ where
 pub async fn request_json<T>(
     client: &Client,
     token: &str,
-    api_url: reqwest::Url,
+    api_url: url::Url,
     method_name: &str,
     params: Vec<u8>,
     _timeout_hint: Option<Duration>,
@@ -74,12 +74,12 @@ where
     let method_name = method_name.trim_end_matches("Inline");
 
     let request = client
-        .post(crate::net::method_url(api_url, token, method_name))
+        .post(crate::net::method_url(api_url, token, method_name).as_str())
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
         .body(params)
         .build()?;
 
-    // FIXME: uncomment this, when reqwest starts setting default timeout early
+    // FIXME: uncomment this, when wreq starts setting default timeout early
     // if let Some(timeout) = timeout_hint {
     //     *request.timeout_mut().get_or_insert(Duration::ZERO) += timeout;
     // }

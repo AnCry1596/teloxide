@@ -1,7 +1,7 @@
 //! Module for serializing into `multipart/form-data`
-//! ([`reqwest::multipart::Form`])
+//! ([`wreq::multipart::Form`])
 //!
-//! [`reqwest::multipart::Form`]: reqwest::multipart::Form
+//! [`wreq::multipart::Form`]: wreq::multipart::Form
 //!
 //! ## How it works
 //!
@@ -15,7 +15,7 @@ mod serializers;
 
 use std::future::Future;
 
-use reqwest::multipart::Form;
+use wreq::multipart::Form;
 use serde::Serialize;
 
 use crate::requests::MultipartPayload;
@@ -24,7 +24,7 @@ use serializers::MultipartSerializer;
 
 /// Serializes given value into [`Form`] **taking all input files out**.
 ///
-/// [`Form`]:  reqwest::multipart::Form
+/// [`Form`]:  wreq::multipart::Form
 pub(crate) fn to_form<T>(val: &mut T) -> Result<impl Future<Output = Form>, Error>
 where
     T: Serialize + MultipartPayload,
@@ -53,7 +53,7 @@ where
 
 /// Serializes given value into [`Form`].
 ///
-/// [`Form`]:  reqwest::multipart::Form
+/// [`Form`]:  wreq::multipart::Form
 pub(crate) fn to_form_ref<T: ?Sized>(val: &T) -> Result<impl Future<Output = Form>, Error>
 where
     T: Serialize + MultipartPayload,

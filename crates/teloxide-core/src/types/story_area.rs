@@ -107,7 +107,7 @@ pub struct StoryAreaTypeSuggestedReaction {
 #[derive(Serialize, Deserialize)]
 pub struct StoryAreaTypeLink {
     /// HTTP or tg:// URL to be opened when the area is clicked
-    pub url: reqwest::Url,
+    pub url: url::Url,
 }
 
 /// Describes a story area containing weather information. Currently, a story
