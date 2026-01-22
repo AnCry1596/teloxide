@@ -36,15 +36,33 @@ use std::sync::Arc;
 let file = InputFile::file("large_video.mp4")
     .with_progress(Arc::new(|progress: UploadProgress| {
         if let Some(pct) = progress.percentage() {
-            println!("Upload progress: {:.1}%", pct);
+            println!(
+                "Upload: {:.1}% | Speed: {} | ETA: {:?}",
+                pct,
+                progress.speed_human_readable(),
+                progress.eta()
+            );
         } else {
-            println!("Uploaded {} bytes", progress.bytes_sent);
+            println!(
+                "Uploaded {} bytes | Speed: {}",
+                progress.bytes_sent,
+                progress.speed_human_readable()
+            );
         }
     }));
 
 // Use with any file-sending method
 bot.send_video(chat_id, file).await?;
 ```
+
+The `UploadProgress` struct provides:
+- `bytes_sent` - Number of bytes uploaded so far
+- `total_bytes` - Total file size (if known)
+- `elapsed` - Time elapsed since upload started
+- `speed_bps` - Current upload speed in bytes per second
+- `percentage()` - Progress as a percentage (0.0 to 100.0)
+- `speed_human_readable()` - Speed formatted as "X.XX MB/s", "X.XX KB/s", etc.
+- `eta()` - Estimated time remaining until upload completes
 
 ## Highlights
 

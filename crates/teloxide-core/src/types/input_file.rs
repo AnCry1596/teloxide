@@ -18,6 +18,7 @@ use std::{
     borrow::Cow, convert::Infallible, fmt, future::Future, io, iter, mem, path::PathBuf, pin::Pin,
     sync::Arc,
     task,
+    time::{Duration, Instant},
 };
 
 use crate::types::{self, InputSticker};
@@ -29,6 +30,10 @@ pub struct UploadProgress {
     pub bytes_sent: u64,
     /// Total file size in bytes, if known.
     pub total_bytes: Option<u64>,
+    /// Time elapsed since upload started.
+    pub elapsed: Duration,
+    /// Current upload speed in bytes per second.
+    pub speed_bps: f64,
 }
 
 impl UploadProgress {
@@ -44,6 +49,35 @@ impl UploadProgress {
             }
         })
     }
+
+    /// Returns the upload speed in a human-readable format.
+    #[must_use]
+    pub fn speed_human_readable(&self) -> String {
+        let speed = self.speed_bps;
+        if speed >= 1_000_000_000.0 {
+            format!("{:.2} GB/s", speed / 1_000_000_000.0)
+        } else if speed >= 1_000_000.0 {
+            format!("{:.2} MB/s", speed / 1_000_000.0)
+        } else if speed >= 1_000.0 {
+            format!("{:.2} KB/s", speed / 1_000.0)
+        } else {
+            format!("{:.0} B/s", speed)
+        }
+    }
+
+    /// Returns the estimated time remaining until upload completes.
+    /// Returns `None` if total size is unknown or speed is zero.
+    #[must_use]
+    pub fn eta(&self) -> Option<Duration> {
+        self.total_bytes.and_then(|total| {
+            if self.speed_bps <= 0.0 || self.bytes_sent >= total {
+                return None;
+            }
+            let remaining_bytes = total - self.bytes_sent;
+            let seconds_remaining = remaining_bytes as f64 / self.speed_bps;
+            Some(Duration::from_secs_f64(seconds_remaining))
+        })
+    }
 }
 
 /// A callback type for upload progress notifications.
@@ -57,13 +91,20 @@ struct ProgressStream<S> {
     bytes_sent: u64,
     total_bytes: Option<u64>,
     callback: ProgressCallback,
+    start_time: Instant,
 }
 
 impl<S> ProgressStream<S> {
     fn new(inner: S, callback: ProgressCallback, total_bytes: Option<u64>) -> Self {
+        let start_time = Instant::now();
         // Call callback with initial state
-        callback(UploadProgress { bytes_sent: 0, total_bytes });
-        Self { inner, bytes_sent: 0, total_bytes, callback }
+        callback(UploadProgress {
+            bytes_sent: 0,
+            total_bytes,
+            elapsed: Duration::ZERO,
+            speed_bps: 0.0,
+        });
+        Self { inner, bytes_sent: 0, total_bytes, callback, start_time }
     }
 }
 
@@ -78,9 +119,17 @@ where
         match this.inner.poll_next(cx) {
             task::Poll::Ready(Some(Ok(bytes))) => {
                 *this.bytes_sent += bytes.len() as u64;
+                let elapsed = this.start_time.elapsed();
+                let speed_bps = if elapsed.as_secs_f64() > 0.0 {
+                    *this.bytes_sent as f64 / elapsed.as_secs_f64()
+                } else {
+                    0.0
+                };
                 (this.callback)(UploadProgress {
                     bytes_sent: *this.bytes_sent,
                     total_bytes: *this.total_bytes,
+                    elapsed,
+                    speed_bps,
                 });
                 task::Poll::Ready(Some(Ok(bytes)))
             }
