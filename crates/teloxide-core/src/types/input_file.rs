@@ -360,27 +360,33 @@ impl InputFile {
 
             File(path_to_file) => {
                 let fut = async move {
-                    let body = match tokio::fs::File::open(&path_to_file).await {
+                    match tokio::fs::File::open(&path_to_file).await {
                         Ok(file) => {
-                            // Get file size for progress tracking
+                            // Get file size for progress tracking and content-length
                             let total_bytes = file.metadata().await.ok().map(|m| m.len());
                             let file = FramedRead::new(file, BytesDecoder);
 
                             if let Some(callback) = progress_callback {
                                 let stream = ProgressStream::new(file, callback, total_bytes);
-                                Body::wrap_stream(stream)
+                                let body = Body::wrap_stream(stream);
+                                match total_bytes {
+                                    Some(len) => Part::stream_with_length(body, len).file_name(filename),
+                                    None => Part::stream(body).file_name(filename),
+                                }
                             } else {
-                                Body::wrap_stream(file)
+                                let body = Body::wrap_stream(file);
+                                match total_bytes {
+                                    Some(len) => Part::stream_with_length(body, len).file_name(filename),
+                                    None => Part::stream(body).file_name(filename),
+                                }
                             }
                         }
                         Err(err) => {
                             // explicit type needed for `Bytes: From<?T>` in `wrap_stream`
                             let err = Err::<Bytes, _>(err);
-                            Body::wrap_stream(stream::iter([err]))
+                            Part::stream(Body::wrap_stream(stream::iter([err]))).file_name(filename)
                         }
-                    };
-
-                    Part::stream(body).file_name(filename)
+                    }
                 };
 
                 Some(Either::Left(fut))
