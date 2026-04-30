@@ -141,9 +141,7 @@ where
 /// This object represents the contents of a file to be uploaded.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputfile).
-#[derive(Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[cfg_attr(test, schemars(with = "String"))] // It is just a String in the TBA
+#[derive(Debug, Clone)]
 pub struct InputFile {
     id: OnceCell<Arc<str>>,
     file_name: Option<Cow<'static, str>>,
