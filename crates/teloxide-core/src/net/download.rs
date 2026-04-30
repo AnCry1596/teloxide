@@ -103,8 +103,10 @@ where
     client.get(file_url(api_url, token, path).as_str()).send().then(move |r| async move {
         let mut res = r?.error_for_status()?;
 
-        while let Some(chunk) = res.chunk().await? {
-            dst.write_all(&chunk).await.map_err(Arc::new)?;
+        while let Some(frame) = res.frame().await? {
+            if let Some(chunk) = frame.data_ref() {
+                dst.write_all(chunk).await.map_err(Arc::new)?;
+            }
         }
 
         Ok(())
@@ -125,10 +127,16 @@ pub fn download_file_stream(
     client.get(file_url(api_url, token, path).as_str()).send().into_stream().flat_map(|res| {
         match res.and_then(Response::error_for_status) {
             Ok(res) => Either::Left(unfold(res, |mut res| async {
-                match res.chunk().await {
-                    Err(err) => Some((Err(err), res)),
-                    Ok(Some(c)) => Some((Ok(c), res)),
-                    Ok(None) => None,
+                loop {
+                    match res.frame().await {
+                        Err(err) => return Some((Err(err), res)),
+                        Ok(None) => return None,
+                        Ok(Some(c)) => {
+                            if let Some(b) = c.into_data().ok() {
+                                return Some((Ok(b), res));
+                            }
+                        }
+                    }
                 }
             })),
             Err(err) => Either::Right(once(ready(Err(err)))),
