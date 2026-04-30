@@ -3841,8 +3841,9 @@ dependencies = [
 
 [[package]]
 name = "wreq"
-version = "6.0.0-rc.27"
-source = "git+https://github.com/0x676e67/wreq#70eb6c68739705000d1893991d0debf1cb70bc3f"
+version = "6.0.0-rc.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f79937f6c4df65b3f6f78715b9de2977afe9ee3b3436483c7949a24511e25935"
 dependencies = [
  "ahash",
  "boring2",
@@ -4043,3 +4044,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "wreq"
+version = "6.0.0-rc.27"
+source = "git+https://github.com/0x676e67/wreq#70eb6c68739705000d1893991d0debf1cb70bc3f"
