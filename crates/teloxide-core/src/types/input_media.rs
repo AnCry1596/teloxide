@@ -8,9 +8,9 @@ use crate::types::{InputFile, MessageEntity, ParseMode, Seconds};
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmedia).
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[serde(tag = "type")]
+// #[serde(rename_all = "snake_case")]
 pub enum InputMedia {
     Photo(InputMediaPhoto),
     Video(InputMediaVideo),
@@ -22,9 +22,9 @@ pub enum InputMedia {
 /// Represents a photo to be sent.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmediaphoto).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputMediaPhoto {
     /// File to send.
     pub media: InputFile,
@@ -108,9 +108,9 @@ impl InputMediaPhoto {
 /// Represents a video to be sent.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmediavideo).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputMediaVideo {
     // File to send.
     pub media: InputFile,
@@ -266,9 +266,9 @@ impl InputMediaVideo {
 /// sound) to be sent.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmediaanimation).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputMediaAnimation {
     /// File to send.
     pub media: InputFile,
@@ -393,9 +393,9 @@ impl InputMediaAnimation {
 /// Represents an audio file to be treated as music to be sent.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmediaaudio).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputMediaAudio {
     /// File to send.
     pub media: InputFile,
@@ -502,9 +502,9 @@ impl InputMediaAudio {
 /// Represents a general file to be sent.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputmediadocument).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputMediaDocument {
     /// File to send.
     pub media: InputFile,

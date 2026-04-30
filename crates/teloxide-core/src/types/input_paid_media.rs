@@ -8,9 +8,9 @@ use crate::types::{InputFile, Seconds};
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputpaidmedia).
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[serde(tag = "type")]
+// #[serde(rename_all = "snake_case")]
 pub enum InputPaidMedia {
     Photo(InputPaidMediaPhoto),
     Video(Box<InputPaidMediaVideo>),
@@ -59,7 +59,7 @@ impl InputPaidMedia {
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputpaidmediaphoto).
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputPaidMediaPhoto {
     /// File to send. Pass a file_id to send a file that exists on the Telegram
     /// servers (recommended), pass an HTTP URL for Telegram to get a file from
@@ -85,9 +85,9 @@ impl InputPaidMediaPhoto {
 /// The paid media to send is a video.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputpaidmediavideo).
-#[serde_with::skip_serializing_none]
+// #[serde_with::skip_serializing_none]
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
+// #[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct InputPaidMediaVideo {
     /// File to send. Pass a file_id to send a file that exists on the Telegram
     /// servers (recommended), pass an HTTP URL for Telegram to get a file from

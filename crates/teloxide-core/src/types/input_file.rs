@@ -141,7 +141,7 @@ where
 /// This object represents the contents of a file to be uploaded.
 ///
 /// [The official docs](https://core.telegram.org/bots/api#inputfile).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InputFile {
     id: OnceCell<Arc<str>>,
     file_name: Option<Cow<'static, str>>,

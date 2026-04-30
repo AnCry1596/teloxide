@@ -762,8 +762,8 @@ impl From<wreq::Error> for DownloadError {
     }
 }
 
-impl From<reqwest::Error> for RequestError {
-    fn from(error: reqwest::Error) -> Self {
+impl From<wreq::Error> for RequestError {
+    fn from(error: wreq::Error) -> Self {
         RequestError::Network(Arc::new(hide_token(error)))
     }
 }

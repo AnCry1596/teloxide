@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use bytes::Bytes;
 use futures::{future::BoxFuture, stream::BoxStream, FutureExt, StreamExt};
@@ -66,18 +66,18 @@ async fn copy_file<'o, D>(path: &'o str, dst: &'o mut D) -> Result<(), DownloadE
 where
     D: ?Sized + AsyncWrite + Unpin,
 {
-    let mut src_file = File::open(path).await?;
+    let mut src_file = File::open(path).await.map_err(|e| DownloadError::Io(Arc::new(e)))?;
 
     let mut buffer = [0; 128 * 1024];
     loop {
-        let n = src_file.read(&mut buffer).await?;
+        let n = src_file.read(&mut buffer).await.map_err(|e| DownloadError::Io(Arc::new(e)))?;
         if n == 0 {
             break;
         }
 
-        dst.write_all(&buffer[..n]).await?;
+        dst.write_all(&buffer[..n]).await.map_err(|e| DownloadError::Io(Arc::new(e)))?;
     }
 
-    dst.flush().await?;
+    dst.flush().await.map_err(|e| DownloadError::Io(Arc::new(e)))?;
     Ok(())
 }
