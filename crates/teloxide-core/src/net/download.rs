@@ -7,6 +7,7 @@ use futures::{
     FutureExt, Stream, StreamExt,
 };
 use url::Url;
+use http_body_util::BodyExt;
 use wreq::{Client, Response};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
@@ -100,8 +101,8 @@ where
     client.get(file_url(api_url, token, path).as_str()).send().then(move |r| async move {
         let mut res = r?.error_for_status()?;
 
-        while let Some(frame) = res.frame().await? {
-            if let Some(chunk) = frame.data_ref() {
+        while let Some(frame) = res.frame().await {
+            if let Some(chunk) = frame?.data_ref() {
                 dst.write_all(chunk).await.map_err(Arc::new)?;
             }
         }
@@ -126,9 +127,9 @@ pub fn download_file_stream(
             Ok(res) => Either::Left(unfold(res, |mut res| async {
                 loop {
                     match res.frame().await {
-                        Err(err) => return Some((Err(err), res)),
-                        Ok(None) => return None,
-                        Ok(Some(c)) => {
+                        None => return None,
+                        Some(Err(err)) => return Some((Err(err), res)),
+                        Some(Ok(c)) => {
                             if let Some(b) = c.into_data().ok() {
                                 return Some((Ok(b), res));
                             }
